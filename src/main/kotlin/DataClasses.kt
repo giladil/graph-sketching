@@ -29,3 +29,11 @@ fun List<ADSEntry>.sizeOfCloser(dist: Double): Int {
     }
     return count
 }
+
+fun List<ADSEntry>.calculateP(k: Int): Double {
+    if (this.size < k) {
+        return 1.0
+    }
+    val maxCurrentValue = this.maxOf { it.hashValue }
+    return maxCurrentValue.toDouble() / Int.MAX_VALUE
+}

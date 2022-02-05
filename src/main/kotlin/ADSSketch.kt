@@ -28,16 +28,7 @@ object ADSSketch {
             val nextNode = dikjstraMinDist(distMap, nodesToExplore)
             nodesToExplore.remove(nextNode)
             val dvu = distMap[nextNode] ?: continue
-            for (edge in graph.getOrDefault(nextNode, listOf())) {
-                val neighbor = edge.dest
-                if (neighbor !in nodesToExplore) {
-                    continue
-                }
-                val alt = if (distMap[nextNode] == null) Double.MAX_VALUE else distMap[nextNode]!! + edge.weight
-                if (alt < distMap.getOrDefault(neighbor, Double.MAX_VALUE)) {
-                    distMap[neighbor] = alt
-                }
-            }
+            updateDistMap(graph, nextNode, nodesToExplore, distMap)
             // Update sketch
             val sketch = adsSketch.getOrDefault(nextNode, mutableListOf())
             if (!sketch.contains(node) && sketch.sizeOfCloser(dvu) < k) {
@@ -46,7 +37,7 @@ object ADSSketch {
                         node = node,
                         hashValue = hashFunction(node),
                         dist = dvu,
-                        p = 1.0 // TODO FIX THIS
+                        p = sketch.calculateP(k)
                     )
                 )
                 adsSketch[nextNode] = sketch
@@ -69,5 +60,56 @@ object ADSSketch {
         }
 
         return minNode
+    }
+
+
+    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>): Map<String, Map<String, Double>> {
+        println("starting full all distance")
+        val distMap = mutableMapOf<String, Map<String, Double>>()
+        var count = 0
+        for (node in graph.keys) {
+            val nodeResult = fullDijkstra(node, graph)
+            distMap[node] = nodeResult
+            count += 1
+            if (count % 100 == 0) {
+                println("Finished $count out of ${graph.size}")
+            }
+        }
+        return distMap
+    }
+
+    // For node v, do a pruned dikjstra for it, updating the adsSketch as it goes (in place!)
+    private fun fullDijkstra(
+        node: String,
+        graph: Map<String, MutableList<GraphEdge>>
+    ): Map<String, Double> {
+        val nodesToExplore = graph.keys.toMutableSet()
+        val distMap = mutableMapOf<String, Double>()
+        distMap[node] = 0.0
+        while (nodesToExplore.isNotEmpty()) {
+            val nextNode = dikjstraMinDist(distMap, nodesToExplore)
+            nodesToExplore.remove(nextNode)
+            updateDistMap(graph, nextNode, nodesToExplore, distMap)
+        }
+
+        return distMap
+    }
+
+    private fun updateDistMap(
+        graph: Map<String, MutableList<GraphEdge>>,
+        nextNode: String,
+        nodesToExplore: MutableSet<String>,
+        distMap: MutableMap<String, Double>
+    ) {
+        for (edge in graph.getOrDefault(nextNode, listOf())) {
+            val neighbor = edge.dest
+            if (neighbor !in nodesToExplore) {
+                continue
+            }
+            val alt = if (distMap[nextNode] == null) Double.MAX_VALUE else distMap[nextNode]!! + edge.weight
+            if (alt < distMap.getOrDefault(neighbor, Double.MAX_VALUE)) {
+                distMap[neighbor] = alt
+            }
+        }
     }
 }
