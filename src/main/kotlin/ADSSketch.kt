@@ -85,7 +85,7 @@ object ADSSketch {
                     jobs.clear()
                     count += (maxJobs * chunkSize)
                     println("Finished $count out of ${graph.size}")
-                    if (count % 2500 == 0) {
+                    if (count % 2000 == 0) {
                         val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
                         File("$FILE_PRFIX/epinions-data-full-all-distance-part-${part}.json").writeText(allDistanceJson)
                         part += 1
