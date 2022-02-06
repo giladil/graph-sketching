@@ -1,3 +1,7 @@
+import com.fasterxml.jackson.databind.ObjectMapper
+import kotlinx.coroutines.*
+import java.io.File
+
 object ADSSketch {
     fun buildADSSketchForGraph(k: Int, graph: Map<String, MutableList<GraphEdge>>): Map<String, List<ADSEntry>> {
         println("starting ADS sketch")
@@ -63,19 +67,54 @@ object ADSSketch {
     }
 
 
-    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>): Map<String, Map<String, Double>> {
-        println("starting full all distance")
-        val distMap = mutableMapOf<String, Map<String, Double>>()
-        var count = 0
-        for (node in graph.keys) {
-            val nodeResult = fullDijkstra(node, graph)
-            distMap[node] = nodeResult
-            count += 1
-            if (count % 100 == 0) {
+    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>) = runBlocking {
+        coroutineScope {
+            println("starting full all distance")
+            val distMap = mutableMapOf<String, Map<String, Double>>()
+            var count = 0
+            val chunkSize = 100
+            val maxJobs = 5
+            val jobs: MutableList<Deferred<Unit>> = mutableListOf()
+            var part = 1
+            val FILE_PRFIX = "src/main/resources"
+
+            graph.keys.chunked(chunkSize).forEach {
+                jobs.add(async(Dispatchers.Default) { processDijkstraBatch(it, graph, distMap) })
+                if (jobs.size == maxJobs) {
+                    jobs.awaitAll()
+                    jobs.clear()
+                    count += (maxJobs * chunkSize)
+                    println("Finished $count out of ${graph.size}")
+                    if (count % 2500 == 0) {
+                        val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
+                        File("$FILE_PRFIX/epinions-data-full-all-distance-part-${part}.json").writeText(allDistanceJson)
+                        part += 1
+                        distMap.clear()
+                    }
+                }
+            }
+            if (jobs.size != 0) {
+                jobs.awaitAll()
+                count += (jobs.size * chunkSize)
+                jobs.clear()
                 println("Finished $count out of ${graph.size}")
+                val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
+                File("$FILE_PRFIX/epinions-data-full-all-distance-part-${part}.json").writeText(allDistanceJson)
+                distMap.clear()
             }
         }
-        return distMap
+    }
+
+
+    private fun processDijkstraBatch(
+        keys: List<String>,
+        graph: Map<String, MutableList<GraphEdge>>,
+        distMap: MutableMap<String, Map<String, Double>>
+    ) {
+        for (node in keys) {
+            val nodeResult = fullDijkstra(node, graph)
+            distMap[node] = nodeResult
+        }
     }
 
     // For node v, do a pruned dikjstra for it, updating the adsSketch as it goes (in place!)

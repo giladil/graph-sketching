@@ -14,13 +14,11 @@ fun main() {
 
 
     // ADS
-    val reverseGraph = readFile("soc-epinions.mtx", ' ', true)
-    val adsSketch = ADSSketch.buildADSSketchForGraph(2, reverseGraph)
-    val adsJson = ObjectMapper().writeValueAsString(adsSketch)
-    File("$FILE_PRFIX/epinions-data-ads.json").writeText(adsJson)
+//    val reverseGraph = readFile("soc-epinions.mtx", ' ', true)
+//    val adsSketch = ADSSketch.buildADSSketchForGraph(2, reverseGraph)
+//    val adsJson = ObjectMapper().writeValueAsString(adsSketch)
+//    File("$FILE_PRFIX/epinions-data-ads.json").writeText(adsJson)
 
     val graph= readFile("soc-epinions.mtx", ' ', false)
-    val allDistance = ADSSketch.fullAllDistance(graph)
-    val allDistanceJson = ObjectMapper().writeValueAsString(adsSketch)
-    File("$FILE_PRFIX/epinions-data-full-all-distance.json").writeText(allDistanceJson)
+    ADSSketch.fullAllDistance(graph)
 }
