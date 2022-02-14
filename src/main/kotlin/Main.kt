@@ -2,23 +2,32 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.File
 
 fun main() {
-    val FILE_PRFIX = "src/main/resources"
+    val FILE_PRFIX = "src/main/outputs"
+    val filename = "etherium-100k.csv"
 
-//    val graph = readFile("soc-epinions.mtx", ' ', false)
-//    val reachabilitySet = GraphReachability.buildReachabilitySet(graph, false)
-//    val json = ObjectMapper().writeValueAsString(reachabilitySet)
-//    File("$FILE_PRFIX/epinions-data.json").writeText(json)
-//    val reachabilitySetSketch = GraphReachability.buildReachabilitySet(graph, true, 5)
-//    val sketchJson = ObjectMapper().writeValueAsString(reachabilitySetSketch)
-//    File("$FILE_PRFIX/epinions-sketch.json").writeText(sketchJson)
+    var graph = readFile(filename, ',', false)
+    val reachabilitySet = GraphReachability.buildReachabilitySet(graph, false)
+    val json = ObjectMapper().writeValueAsString(reachabilitySet)
+    File("$FILE_PRFIX/etherium-full-reachability.json").writeText(json)
 
+    val reachabilitySetSketch = GraphReachability.buildReachabilitySet(graph, true, 5)
+    val sketchJson = ObjectMapper().writeValueAsString(reachabilitySetSketch)
+    File("$FILE_PRFIX/etherium-reach-sketch.json").writeText(sketchJson)
 
-    // ADS
-//    val reverseGraph = readFile("soc-epinions.mtx", ' ', true)
-//    val adsSketch = ADSSketch.buildADSSketchForGraph(2, reverseGraph)
-//    val adsJson = ObjectMapper().writeValueAsString(adsSketch)
-//    File("$FILE_PRFIX/epinions-data-ads.json").writeText(adsJson)
+//     ADS
+    val reverseGraph = readFile(filename, ',', true)
+    var adsSketch = ADSSketch.buildADSSketchForGraph(1, reverseGraph)
+    var adsJson = ObjectMapper().writeValueAsString(adsSketch)
+    File("$FILE_PRFIX/etherium-ads-1.json").writeText(adsJson)
 
-    val graph= readFile("soc-epinions.mtx", ' ', false)
-    ADSSketch.fullAllDistance(graph)
+    adsSketch = ADSSketch.buildADSSketchForGraph(2, reverseGraph)
+    adsJson = ObjectMapper().writeValueAsString(adsSketch)
+    File("$FILE_PRFIX/etherium-ads-2.json").writeText(adsJson)
+
+    adsSketch = ADSSketch.buildADSSketchForGraph(5, reverseGraph)
+    adsJson = ObjectMapper().writeValueAsString(adsSketch)
+    File("$FILE_PRFIX/etherium-ads-5.json").writeText(adsJson)
+
+    graph= readFile(filename, ',', false)
+    ADSSketch.fullAllDistance(graph, "etherium")
 }

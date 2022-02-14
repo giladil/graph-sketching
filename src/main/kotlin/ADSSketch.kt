@@ -67,7 +67,7 @@ object ADSSketch {
     }
 
 
-    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>) = runBlocking {
+    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>, filename: String) = runBlocking {
         coroutineScope {
             println("starting full all distance")
             val distMap = mutableMapOf<String, Map<String, Double>>()
@@ -87,7 +87,7 @@ object ADSSketch {
                     println("Finished $count out of ${graph.size}")
                     if (count % 2000 == 0) {
                         val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
-                        File("$FILE_PRFIX/epinions-data-full-all-distance-part-${part}.json").writeText(allDistanceJson)
+                        File("$FILE_PRFIX/$filename-part-${part}.json").writeText(allDistanceJson)
                         part += 1
                         distMap.clear()
                     }
