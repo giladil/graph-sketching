@@ -1,53 +1,40 @@
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.runBlocking
+import com.fasterxml.jackson.databind.ObjectMapper
+import java.io.File
 
 object GraphReachability {
+    val FILE_PRFIX = "src/main/outputs"
 
     fun buildReachabilitySet(
         graph: Map<String, MutableList<GraphEdge>>,
         sketch: Boolean,
-        k: Int = 5
-    ): Map<String, List<String>> =
-        runBlocking {
-            return@runBlocking coroutineScope {
-                val reachSet = mutableMapOf<String, List<String>>()
-                var count = 0
-                val CHUNK_SIZE = 300
-                val jobs: MutableList<Deferred<Map<String, List<String>>>> = mutableListOf()
-
-                graph.keys.chunked(CHUNK_SIZE).forEach {
-                    jobs.add(async { reachabilityChunks(it, graph, sketch, k) })
-                    if (jobs.size == 2) {
-                        val partials = jobs.awaitAll()
-                        for (partial in partials) {
-                            reachSet.putAll(partial)
-                            count += CHUNK_SIZE
-                            println("finished $count out of ${graph.size}")
-                        }
-                        jobs.clear()
-                    }
-                }
-
-                return@coroutineScope reachSet
-            }
-        }
-
-    private fun reachabilityChunks(
-        nodes: List<String>,
-        graph: Map<String, MutableList<GraphEdge>>,
-        sketch: Boolean = false,
-        k: Int
+        k: Int = 5,
+        filename: String? = null
     ): Map<String, List<String>> {
         val reachSet = mutableMapOf<String, List<String>>()
-        for (node in nodes) {
+        var count = 0
+        val total = graph.size
+        var part = 0
+
+        for (node in graph.keys) {
             if (sketch) {
                 reachSet[node] = kMinsReachability(k, node, graph)
             } else {
                 reachSet[node] = fullNodeReachability(node, graph)
             }
+            count += 1
+            if (count % 100 == 0) { println("finished $count out of $total") }
+            if (count % 10000 == 0  && filename != null) {
+                val reachJson = ObjectMapper().writeValueAsString(reachSet)
+                File("$FILE_PRFIX/$filename-reach-part-$part.json").writeText(reachJson)
+                part += 1
+                reachSet.clear()
+            }
+        }
+
+        if (filename != null) {
+            val reachJson = ObjectMapper().writeValueAsString(reachSet)
+            File("$FILE_PRFIX/$filename-reach-part-$part.json").writeText(reachJson)
+            reachSet.clear()
         }
         return reachSet
     }
@@ -73,6 +60,7 @@ object GraphReachability {
         val seenNodes = hashSetOf(node)
         val kMins = mutableListOf(hashFunction(node))
         val nodesToDiscover = mutableListOf(node)
+
         while (nodesToDiscover.isNotEmpty()) {
             val newNode = nodesToDiscover.removeFirst()
             for (edge in graph.getOrDefault(newNode, listOf())) {
