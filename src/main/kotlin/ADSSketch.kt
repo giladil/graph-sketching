@@ -1,6 +1,8 @@
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.*
 import java.io.File
+import java.util.PriorityQueue
+
 
 object ADSSketch {
     fun buildADSSketchForGraph(k: Int, graph: Map<String, MutableList<GraphEdge>>): Map<String, List<ADSEntry>> {
@@ -28,11 +30,29 @@ object ADSSketch {
         val nodesToExplore = graph.keys.toMutableSet()
         val distMap = mutableMapOf<String, Double>()
         distMap[node] = 0.0
+        val queue = PriorityQueue(compareBy<Pair<String, Double>> { it.second })
+
+        val seenElements = mutableSetOf<String>()
+        nodesToExplore.forEach {
+            if (it == node) {
+                queue.add(Pair(it, 0.0))
+            } else {
+                queue.add(Pair(it, Double.MAX_VALUE))
+            }
+        }
         while (nodesToExplore.isNotEmpty()) {
-            val nextNode = dikjstraMinDist(distMap, nodesToExplore)
+            var hasSeen = true
+            var nextNode = ""
+            while (hasSeen) {
+                nextNode = queue.remove().first
+                hasSeen = seenElements.contains(nextNode)
+            }
             nodesToExplore.remove(nextNode)
             val dvu = distMap[nextNode] ?: continue
-            updateDistMap(graph, nextNode, nodesToExplore, distMap)
+            updateDistMap(graph, nextNode, nodesToExplore, distMap, queue)
+
+            seenElements.add(nextNode)
+
             // Update sketch
             val sketch = adsSketch.getOrDefault(nextNode, mutableListOf())
             if (!sketch.contains(node) && sketch.sizeOfCloser(dvu) < k) {
@@ -51,71 +71,33 @@ object ADSSketch {
         }
     }
 
-    private fun dikjstraMinDist(distMap: Map<String, Double>, nodesToExplore: MutableSet<String>): String {
-        var minDist = Double.MAX_VALUE
-        var minNode = nodesToExplore.first()
+    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>, filename: String) {
+        println("starting full all distance")
+        val distMap = mutableMapOf<String, Map<String, Double>>()
+        var count = 0
+        var part = 1
+        val FILE_PRFIX = "src/main/outputs"
+        val total = graph.size
 
-        for (node in nodesToExplore) {
-            val dist = distMap.getOrDefault(node, Double.MAX_VALUE)
-            if (dist < minDist) {
-                minDist = dist
-                minNode = node
+        for (node in graph.keys) {
+            val nodeResult = fullDijkstra(node, graph)
+            distMap[node] = nodeResult
+            count += 1
+            if (count % 100 == 0) {
+                println("finished $count out of $total")
             }
-        }
-
-        return minNode
-    }
-
-
-    fun fullAllDistance(graph: Map<String, MutableList<GraphEdge>>, filename: String) = runBlocking {
-        coroutineScope {
-            println("starting full all distance")
-            val distMap = mutableMapOf<String, Map<String, Double>>()
-            var count = 0
-            val chunkSize = 100
-            val maxJobs = 5
-            val jobs: MutableList<Deferred<Unit>> = mutableListOf()
-            var part = 1
-            val FILE_PRFIX = "src/main/resources"
-
-            graph.keys.chunked(chunkSize).forEach {
-                jobs.add(async(Dispatchers.Default) { processDijkstraBatch(it, graph, distMap) })
-                if (jobs.size == maxJobs) {
-                    jobs.awaitAll()
-                    jobs.clear()
-                    count += (maxJobs * chunkSize)
-                    println("Finished $count out of ${graph.size}")
-                    if (count % 2000 == 0) {
-                        val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
-                        File("$FILE_PRFIX/$filename-part-${part}.json").writeText(allDistanceJson)
-                        part += 1
-                        distMap.clear()
-                    }
-                }
-            }
-            if (jobs.size != 0) {
-                jobs.awaitAll()
-                count += (jobs.size * chunkSize)
-                jobs.clear()
-                println("Finished $count out of ${graph.size}")
+            if (count % 2000 == 0) {
                 val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
-                File("$FILE_PRFIX/epinions-data-full-all-distance-part-${part}.json").writeText(allDistanceJson)
+                File("$FILE_PRFIX/$filename-part-${part}.json").writeText(allDistanceJson)
+                part += 1
                 distMap.clear()
             }
         }
+        val allDistanceJson = ObjectMapper().writeValueAsString(distMap)
+        File("$FILE_PRFIX/$filename-part-${part}.json").writeText(allDistanceJson)
+        distMap.clear()
     }
 
-
-    private fun processDijkstraBatch(
-        keys: List<String>,
-        graph: Map<String, MutableList<GraphEdge>>,
-        distMap: MutableMap<String, Map<String, Double>>
-    ) {
-        for (node in keys) {
-            val nodeResult = fullDijkstra(node, graph)
-            distMap[node] = nodeResult
-        }
-    }
 
     // For node v, do a pruned dikjstra for it, updating the adsSketch as it goes (in place!)
     private fun fullDijkstra(
@@ -125,10 +107,25 @@ object ADSSketch {
         val nodesToExplore = graph.keys.toMutableSet()
         val distMap = mutableMapOf<String, Double>()
         distMap[node] = 0.0
+        val queue = PriorityQueue(compareBy<Pair<String, Double>> { it.second })
+
+        val seenElements = mutableSetOf<String>()
+        nodesToExplore.forEach {
+            if (it == node) {
+                queue.add(Pair(it, 0.0))
+            } else {
+                queue.add(Pair(it, Double.MAX_VALUE))
+            }
+        }
         while (nodesToExplore.isNotEmpty()) {
-            val nextNode = dikjstraMinDist(distMap, nodesToExplore)
+            var hasSeen = true
+            var nextNode = ""
+            while (hasSeen) {
+                nextNode = queue.remove().first
+                hasSeen = seenElements.contains(nextNode)
+            }
             nodesToExplore.remove(nextNode)
-            updateDistMap(graph, nextNode, nodesToExplore, distMap)
+            updateDistMap(graph, nextNode, nodesToExplore, distMap, queue)
         }
 
         return distMap
@@ -138,7 +135,8 @@ object ADSSketch {
         graph: Map<String, MutableList<GraphEdge>>,
         nextNode: String,
         nodesToExplore: MutableSet<String>,
-        distMap: MutableMap<String, Double>
+        distMap: MutableMap<String, Double>,
+        queue: PriorityQueue<Pair<String, Double>>
     ) {
         for (edge in graph.getOrDefault(nextNode, listOf())) {
             val neighbor = edge.dest
@@ -148,6 +146,7 @@ object ADSSketch {
             val alt = if (distMap[nextNode] == null) Double.MAX_VALUE else distMap[nextNode]!! + edge.weight
             if (alt < distMap.getOrDefault(neighbor, Double.MAX_VALUE)) {
                 distMap[neighbor] = alt
+                queue.add(Pair(neighbor, alt))
             }
         }
     }
